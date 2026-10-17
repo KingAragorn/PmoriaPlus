@@ -30,6 +30,9 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/file.h>
+#elif defined(__APPLE__)
+/* USG is set on macOS too, but the system flock() is real.  LOCK_* live here. */
+#include <sys/file.h>
 #endif
 
 #ifdef MSDOS
@@ -84,7 +87,9 @@ int getuid(), getgid();
    `topen' declaration.  */
 #include "externs.h"
 
-#ifndef BSD4_3
+#if defined(__APPLE__) || defined(__unix__)
+#include <unistd.h>
+#elif !defined(BSD4_3)
 #ifndef ATARIST_TC
 long lseek();
 #endif /* ATARTIST_TC */
@@ -167,7 +172,7 @@ char *in_str;
 
 #ifndef __TURBOC__
 #if (defined(USG) || defined(atarist)) && !defined(VMS)
-#if !defined(AMIGA) && !defined(MAC) && !defined(ATARIST_TC)
+#if !defined(AMIGA) && !defined(MAC) && !defined(ATARIST_TC) && !defined(__APPLE__)
 
 #include <sys/stat.h>
 #include <errno.h>
