@@ -77,6 +77,8 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     -Wno-unused-result
     -Wno-deprecated-declarations
     -Wno-old-style-definition
+    -Wno-deprecated-non-prototype
+    -Wno-strict-prototypes
     -Wno-missing-braces
     -Wno-implicit-fallthrough
     -Wno-sign-compare
