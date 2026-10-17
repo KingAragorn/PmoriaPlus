@@ -46,8 +46,10 @@ char *strcat();
 #include <strings.h>
 #include <sys/file.h>
 #endif
+#ifndef MORIA_POSIX
 #if defined(ultrix) || defined(USG)
 void exit();
+#endif
 #endif
 #endif
 
@@ -97,8 +99,14 @@ void init_scorefile()
 	}
       setfileinfo (MORIA_TOP, currentdirectory (), SCORE_FTYPE);
 #else
-      (void) fprintf (stderr, "Can't open score file \"%s\"\n", MORIA_TOP);
-      exit(1);
+#ifdef MORIA_POSIX
+      highscore_fp = fopen(MORIA_TOP, "w+");
+#endif
+      if (highscore_fp == NULL)
+	{
+	  (void) fprintf (stderr, "Can't open score file \"%s\"\n", MORIA_TOP);
+	  exit(1);
+	}
 #endif
     }
 #if defined(MSDOS) || defined(VMS) || defined(MAC)
@@ -129,6 +137,10 @@ void read_times()
       while (fgets(in_line, 80, file1) != CNIL)
 	if (strlen(in_line) > 3)
 	  {
+	    if (in_line[strlen(in_line) - 1] == '\n')
+	      in_line[strlen(in_line) - 1] = '\0';
+	    if (strlen(in_line) > 0 && in_line[strlen(in_line) - 1] == '\r')
+	      in_line[strlen(in_line) - 1] = '\0';
 	    if (!strncmp(in_line, "SUN:", 4))
 	      (void) strcpy(days[0], in_line);
 	    else if (!strncmp(in_line, "MON:", 4))

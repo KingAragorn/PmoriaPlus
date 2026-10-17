@@ -1,0 +1,7 @@
+build/
+*.o
+source/moria
+source/pmoria
+pmoria
+__pycache__/
+*.pyc

@@ -101,6 +101,7 @@ static void rd_item();
 static void rd_monster();
 #endif
 
+#ifndef MORIA_POSIX
 #if !defined(ATARIST_MWC)
 #ifdef MAC
 #include <time.h>
@@ -109,6 +110,7 @@ long time();
 #endif
 #else
 char *malloc();
+#endif
 #endif
 
 /* these are used for the save file, to avoid having to pass them to every

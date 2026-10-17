@@ -46,6 +46,7 @@
 #endif
 #endif
 
+#ifndef MORIA_POSIX
 #ifdef VMS
 unsigned int getuid(), getgid();
 #else
@@ -58,6 +59,7 @@ unsigned short getuid(), getgid();
 uid_t getuid(), getgid();
 #else  /* other BSD versions */
 int getuid(), getgid();
+#endif
 #endif
 #endif
 #endif
@@ -119,10 +121,12 @@ static void kingly(void);
 #include <stdlib.h>
 #endif
 
+#ifndef MORIA_POSIX
 #ifndef VMS
 #ifndef MAC
 #if !defined(ATARIST_MWC) && !defined(AMIGA)
 long time();
+#endif
 #endif
 #endif
 #endif

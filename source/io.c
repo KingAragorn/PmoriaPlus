@@ -13,6 +13,18 @@
 
 #include "config.h"
 
+#ifdef MORIA_POSIX
+#include <termios.h>
+#include <sys/wait.h>
+typedef struct termios moria_term_t;
+#define moria_tcget(fd, p) tcgetattr((fd), (p))
+#define moria_tcset(fd, p) tcsetattr((fd), TCSANOW, (p))
+#else
+typedef struct termio moria_term_t;
+#define moria_tcget(fd, p) ioctl((fd), TCGETA, (char *)(p))
+#define moria_tcset(fd, p) ioctl((fd), TCSETA, (char *)(p))
+#endif
+
 #if defined(atarist) && defined(__GNUC__)
 #include <osbind.h>
 #endif
@@ -167,6 +179,7 @@ int Use_value2;
 
 #endif
 
+#ifndef MORIA_POSIX
 #ifndef MAC
 char *getenv();
 #endif
@@ -188,11 +201,12 @@ unsigned sleep();
 void exit();
 void sleep();
 #endif
+#endif
 
 #if !defined(MAC) && !defined(MSDOS) && !defined(ATARI_ST) && !defined(VMS)
 #ifndef AMIGA
 #ifdef USG
-static struct termio save_termio;
+static moria_term_t save_termio;
 #else
 static struct ltchars save_special_chars;
 static struct sgttyb save_ttyb;
@@ -203,7 +217,11 @@ static int save_local_chars;
 #endif
 
 #ifndef MAC
+static void moria_init_color();
 static int curses_on = FALSE;
+static int moria_want_color = TRUE;
+static int moria_color_on = FALSE;
+static chtype moria_glyph_attr[128];
 static WINDOW *savescr;		/* Spare window for saving the screen. -CJS-*/
 #ifdef VMS
 static WINDOW *tempscr;		/* Spare window for VMS CTRL('R'). */
@@ -294,7 +312,7 @@ void init_curses()
 #else
 #if !defined(VMS) && !defined(MSDOS) && !defined(ATARI_ST)
 #ifndef AMIGA
-  (void) ioctl(0, TCGETA, (char *)&save_termio);
+  (void) moria_tcget(0, &save_termio);
 #endif
 #endif
 #endif
@@ -318,7 +336,7 @@ void init_curses()
 #if defined(atarist) && defined(__GNUC__)
   (void) signal (SIGTSTP, (__Sigfunc)suspend);
 #else
-  (void) signal (SIGTSTP, suspend);
+  (void) moria_signal(SIGTSTP, suspend);
 #endif
 #endif
   if (((savescr = newwin (0, 0, 0, 0)) == NULL)
@@ -333,6 +351,7 @@ void init_curses()
     }
   (void) clear();
   (void) refresh();
+  moria_init_color();
   moriaterm ();
 
 #if 0
@@ -368,7 +387,7 @@ void moriaterm()
 #if !defined(MSDOS) && !defined(ATARI_ST) && !defined(VMS)
 #ifndef AMIGA
 #ifdef USG
-  struct termio tbuf;
+  moria_term_t tbuf;
 #else
   struct ltchars lbuf;
   struct tchars buf;
@@ -399,7 +418,7 @@ void moriaterm()
 #else
 #if !defined(ATARI_ST) && !defined(VMS)
 #ifdef USG
-  (void) ioctl(0, TCGETA, (char *)&tbuf);
+  (void) moria_tcget(0, &tbuf);
   /* disable all of the normal special control characters */
   tbuf.c_cc[VINTR] = (char)3; /* control-C */
   tbuf.c_cc[VQUIT] = (char)-1;
@@ -417,7 +436,7 @@ void moriaterm()
   tbuf.c_cc[VMIN] = 1;  /* Input should wait for at least 1 char */
   tbuf.c_cc[VTIME] = 0; /* no matter how long that takes. */
 
-  (void) ioctl(0, TCSETA, (char *)&tbuf);
+  (void) moria_tcset(0, &tbuf);
 #else
   /* disable all of the special characters except the suspend char, interrupt
      char, and the control flow start/stop characters */
@@ -521,7 +540,15 @@ void restore_term()
   pause_line(15);
 #endif
   /* this moves curses to bottom right corner */
+#ifdef MORIA_POSIX
+  {
+    int cy, cx;
+    getyx(stdscr, cy, cx);
+    mvcur(cy, cx, LINES - 1, 0);
+  }
+#else
   mvcur(stdscr->_cury, stdscr->_curx, LINES-1, 0);
+#endif
   endwin();  /* exit curses */
   (void) fflush (stdout);
 #ifdef MSDOS
@@ -531,7 +558,7 @@ void restore_term()
 #ifdef USG
 #if !defined(MSDOS) && !defined(ATARI_ST) && !defined(VMS)
 #ifndef AMIGA
-  (void) ioctl(0, TCSETA, (char *)&save_termio);
+  (void) moria_tcset(0, &save_termio);
 #endif
 #endif
 #else
@@ -625,7 +652,7 @@ void shell_out()
 {
 #ifdef USG
 #if !defined(MSDOS) && !defined(ATARI_ST) && !defined(AMIGA)
-  struct termio tbuf;
+  moria_term_t tbuf;
 #endif
 #else
   struct sgttyb tbuf;
@@ -658,7 +685,7 @@ void shell_out()
 
 #ifdef USG
 #if !defined(MSDOS) && !defined(ATARI_ST) && !defined(AMIGA)
-  (void) ioctl(0, TCGETA, (char *)&tbuf);
+  (void) moria_tcget(0, &tbuf);
 #endif
 #else
   (void) ioctl(0, TIOCGETP, (char *)&tbuf);
@@ -700,7 +727,7 @@ void shell_out()
       default_signals();
 #ifdef USG
 #if !defined(MSDOS) && !defined(ATARI_ST) && !defined(AMIGA)
-      (void) ioctl(0, TCSETA, (char *)&save_termio);
+      (void) moria_tcset(0, &save_termio);
 #endif
 #else
       (void) ioctl(0, TIOCSLTC, (char *)&save_special_chars);
@@ -760,7 +787,7 @@ void shell_out()
   /* have to disable ^Y for tunneling */
 #ifdef USG
 #if !defined(MSDOS) && !defined(ATARI_ST)
-  (void) ioctl(0, TCSETA, (char *)&tbuf);
+  (void) moria_tcset(0, &tbuf);
 #endif
 #else
   (void) ioctl(0, TIOCSLTC, (char *)&lcbuf);
@@ -1066,6 +1093,94 @@ int row;
 #endif
 
 
+/* Terminal color.  Map glyphs use the classic 8-color roguelike palette.
+   Monochrome terminals, -m, and MORIA_MONOCHROME keep the original
+   curses attributes. */
+void moria_force_monochrome()
+{
+#ifndef MAC
+  moria_want_color = FALSE;
+#endif
+}
+
+#ifndef MAC
+static void moria_init_color()
+{
+  int i;
+  short bg;
+
+  moria_color_on = FALSE;
+  if (!moria_want_color || !has_colors())
+    return;
+  if (start_color() == ERR)
+    return;
+#ifdef NCURSES_VERSION
+  if (use_default_colors() == ERR)
+    bg = COLOR_BLACK;
+  else
+    bg = -1;
+#else
+  bg = COLOR_BLACK;
+#endif
+  for (i = 0; i < 8; i++)
+    {
+      static const short fg[8] = {
+	COLOR_BLACK, COLOR_RED, COLOR_GREEN, COLOR_YELLOW,
+	COLOR_BLUE, COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE
+      };
+      (void) init_pair((short)(i + 1), fg[i], bg);
+    }
+
+  for (i = 0; i < 128; i++)
+    moria_glyph_attr[i] = COLOR_PAIR(8);
+
+  /* Creatures: spread across the palette.  Upper case is the bright form. */
+  for (i = 0; i < 26; i++)
+    {
+      int pair = (i % 6) + 2;
+      moria_glyph_attr['a' + i] = COLOR_PAIR(pair);
+      moria_glyph_attr['A' + i] = COLOR_PAIR(pair) | A_BOLD;
+    }
+
+  moria_glyph_attr[' '] = A_NORMAL;
+  moria_glyph_attr['.'] = COLOR_PAIR(8);
+  moria_glyph_attr['#'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['%'] = COLOR_PAIR(2);
+  moria_glyph_attr['+'] = COLOR_PAIR(4);
+  moria_glyph_attr['\''] = COLOR_PAIR(4) | A_BOLD;
+  moria_glyph_attr['<'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['>'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['^'] = COLOR_PAIR(2) | A_BOLD;
+  moria_glyph_attr[':'] = COLOR_PAIR(8);
+  moria_glyph_attr[';'] = COLOR_PAIR(8);
+  moria_glyph_attr['@'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['$'] = COLOR_PAIR(4) | A_BOLD;
+  moria_glyph_attr['*'] = COLOR_PAIR(4) | A_BOLD;
+  moria_glyph_attr['!'] = COLOR_PAIR(5) | A_BOLD;
+  moria_glyph_attr['?'] = COLOR_PAIR(8);
+  moria_glyph_attr[','] = COLOR_PAIR(3);
+  moria_glyph_attr['&'] = COLOR_PAIR(4) | A_BOLD;
+  moria_glyph_attr['='] = COLOR_PAIR(6) | A_BOLD;
+  moria_glyph_attr['"'] = COLOR_PAIR(7) | A_BOLD;
+  moria_glyph_attr['~'] = COLOR_PAIR(4);
+  moria_glyph_attr['_'] = COLOR_PAIR(5);
+  moria_glyph_attr['-'] = COLOR_PAIR(7);
+  moria_glyph_attr['/'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['|'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['\\'] = COLOR_PAIR(8) | A_BOLD;
+  moria_glyph_attr['}'] = COLOR_PAIR(7);
+  moria_glyph_attr['{'] = COLOR_PAIR(7) | A_BOLD;
+  moria_glyph_attr['('] = COLOR_PAIR(7);
+  moria_glyph_attr['['] = COLOR_PAIR(7) | A_BOLD;
+  moria_glyph_attr[']'] = COLOR_PAIR(7);
+  moria_glyph_attr[')'] = COLOR_PAIR(7) | A_BOLD;
+  for (i = 0; i < 10; i++)
+    moria_glyph_attr['0' + i] = COLOR_PAIR((i % 6) + 2) | A_BOLD;
+
+  moria_color_on = TRUE;
+}
+#endif
+
 /* Outputs a char to a given interpolated y, x position	-RAK-	*/
 /* sign bit of a character used to indicate standout mode. -CJS */
 void print(ch, row, col)
@@ -1090,10 +1205,23 @@ int col;
 #else
 {
   vtype tmp_str;
+  unsigned char glyph;
+  int standout;
+  int rc;
 
   row -= panel_row_prt;/* Real co-ords convert to screen positions */
   col -= panel_col_prt;
-  if (mvaddch (row, col, ch) == ERR)
+  glyph = (unsigned char)ch;
+  standout = (glyph & 0x80) != 0;
+  glyph = (unsigned char)(glyph & 0x7F);
+  if (moria_color_on)
+    rc = mvaddch(row, col, ((chtype)glyph) | moria_glyph_attr[glyph]
+		 | (standout ? A_BOLD : 0));
+  else if (standout)
+    rc = mvaddch(row, col, ((chtype)glyph) | A_REVERSE);
+  else
+    rc = mvaddch(row, col, ch);
+  if (rc == ERR)
     {
       abort();
       /* clear msg_flag to avoid problems with unflushed messages */

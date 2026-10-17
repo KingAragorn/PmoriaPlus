@@ -13,7 +13,7 @@
 #ifdef MORIA_HOU
 /* Operating hours for Moria				-RAK-	*/
 /*	 X = Open; . = Closed					*/
-char  days[7][29] = { "SUN:XXXXXXXXXXXXXXXXXXXXXXXX",
+char  days[7][40] = { "SUN:XXXXXXXXXXXXXXXXXXXXXXXX",
 		    "MON:XXXXXXXX.........XXXXXXX",
 		    "TUE:XXXXXXXX.........XXXXXXX",
 		    "WED:XXXXXXXX.........XXXXXXX",

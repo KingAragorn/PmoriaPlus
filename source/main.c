@@ -88,6 +88,7 @@
 #include <time.h>
 #endif
 
+#ifndef MORIA_POSIX
 #ifndef VMS
 #ifndef MAC
 #ifndef GEMDOS
@@ -129,6 +130,7 @@ void perror();
 #ifndef MAC
 #ifdef USG
 void exit();
+#endif
 #endif
 #endif
 #endif
@@ -189,6 +191,22 @@ char *argv[];
 
   /* default command set defined in config.h file */
   rogue_like_commands = ROGUE_LIKE;
+
+#ifdef MORIA_POSIX
+  moria_init_paths();
+  {
+    int ai;
+    char *mono;
+
+    mono = getenv("MORIA_MONOCHROME");
+    if (mono != CNIL && mono[0] != '\0' && mono[0] != '0')
+      moria_force_monochrome();
+    for (ai = 1; ai < argc; ai++)
+      if (argv[ai] != CNIL && argv[ai][0] == '-'
+	  && (argv[ai][1] == 'm' || argv[ai][1] == 'M'))
+	moria_force_monochrome();
+  }
+#endif
 
 #ifdef SECURE
   Authenticate();
@@ -253,6 +271,10 @@ char *argv[];
 	force_rogue_like = TRUE;
 	force_keys_to = TRUE;
 	break;
+      case 'M':
+      case 'm':
+	moria_force_monochrome();
+	break;
 #ifndef MAC
       case 'S': display_scores(TRUE); exit_game();
       case 's': display_scores(FALSE); exit_game();
@@ -263,7 +285,7 @@ char *argv[];
 	if (isdigit((int)argv[0][2]))
 	  seed = atoi(&argv[0][2]);
 	break;
-      default: (void) printf("Usage: moria [-norsw] [savefile]\n");
+      default: (void) printf("Usage: pmoria [-mnorsw] [savefile]\n");
 	exit_game();
 #endif
       }

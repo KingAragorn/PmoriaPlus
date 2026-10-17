@@ -28,10 +28,12 @@
 #endif
 #endif
 
+#ifndef MORIA_POSIX
 #if !defined(ATARIST_MWC) && !defined(MAC) && !defined(VMS) && !defined(AMIGA)
 long time();
 #endif
 struct tm *localtime();
+#endif
 
 #if defined(LINT_ARGS)
 static void compact_objects(void);

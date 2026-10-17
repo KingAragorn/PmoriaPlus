@@ -73,6 +73,7 @@ typedef struct { int stuff; } fpvmach;
 #include <strings.h>
 #endif
 
+#ifndef MORIA_POSIX
 #ifndef VMS
 #ifdef USG
 void exit();
@@ -80,6 +81,7 @@ void exit();
 void sleep();
 #else
 unsigned sleep();
+#endif
 #endif
 #endif
 #endif
@@ -97,6 +99,10 @@ struct sigcontext *scp;
 
   smask = sigsetmask(0) | (1 << sig);
 #else
+#ifdef MORIA_POSIX
+static void signal_handler(int sig)
+{
+#else
 #if defined(__TURBOC__) || defined(AMIGA)
 static void signal_handler(sig)
 #else
@@ -105,11 +111,12 @@ static int signal_handler(sig)
 int sig;
 {
 #endif
+#endif
 
   if(error_sig >= 0)	/* Ignore all second signals. */
     {
       if(++signal_count > 10)	/* Be safe. We will die if persistent enough. */
-	(void) signal(sig, SIG_DFL);
+	(void) moria_signal(sig, SIG_DFL);
       return;
     }
   error_sig = sig;
@@ -122,7 +129,7 @@ int sig;
       )
     {
       if (death)
-	(void) signal(sig, SIG_IGN);		/* Can't quit after death. */
+	(void) moria_signal(sig, SIG_IGN);		/* Can't quit after death. */
       else if (!character_saved && character_generated)
 	{
 	  if (!get_check("Really commit *Suicide*?"))
@@ -133,7 +140,7 @@ int sig;
 	      put_qio();
 	      error_sig = -1;
 #ifdef USG
-	      (void) signal(sig, signal_handler);/* Have to restore handler. */
+	      (void) moria_signal(sig, signal_handler);/* Have to restore handler. */
 #else
 	      (void) sigsetmask(smask);
 #endif
@@ -175,7 +182,7 @@ int sig;
   restore_term();
 #if !defined(MSDOS) && !defined(AMIGA) && !defined(ATARIST_TC)
   /* always generate a core dump */
-  (void) signal(sig, SIG_DFL);
+  (void) moria_signal(sig, SIG_DFL);
   (void) kill(getpid(), sig);
   (void) sleep(5);
 #endif
@@ -193,9 +200,9 @@ void nosignals()
 #if !defined(ATARIST_MWC) && !defined(ATARIST_TC)
 #ifdef SIGTSTP
 #if defined(atarist) && defined(__GNUC__)
-  (void) signal(SIGTSTP, (__Sigfunc)SIG_IGN);
+  (void) moria_signal(SIGTSTP, (__Sigfunc)SIG_IGN);
 #else
-  (void) signal(SIGTSTP, SIG_IGN);
+  (void) moria_signal(SIGTSTP, SIG_IGN);
 #endif
 #ifndef USG
   mask = sigsetmask(0);
@@ -211,9 +218,9 @@ void signals()
 #if !defined(ATARIST_MWC) && !defined(ATARIST_TC)
 #ifdef SIGTSTP
 #if defined(atarist) && defined(__GNUC__)
-  (void) signal(SIGTSTP, (__Sigfunc)suspend);
+  (void) moria_signal(SIGTSTP, (__Sigfunc)suspend);
 #else
-  (void) signal(SIGTSTP, suspend);
+  (void) moria_signal(SIGTSTP, suspend);
 #endif
 #ifndef USG
   (void) sigsetmask(mask);
@@ -229,69 +236,69 @@ void init_signals()
 {
 #if !defined(ATARIST_MWC) && !defined(ATARIST_TC)
   /* No signals for Atari ST compiled with MWC or TC.  */
-  (void) signal(SIGINT, signal_handler);
+  (void) moria_signal(SIGINT, signal_handler);
 
 #if defined(atarist) && defined(__GNUC__)
   /* Atari ST compiled with GNUC has most signals, but we need a cast
      in every call to signal.  */
-  (void) signal(SIGINT, (__Sigfunc)signal_handler);
-  (void) signal(SIGQUIT, (__Sigfunc)signal_handler);
-  (void) signal(SIGTSTP,(__Sigfunc)SIG_IGN);
-  (void) signal(SIGILL, (__Sigfunc)signal_handler);
-  (void) signal(SIGHUP, (__Sigfunc)SIG_IGN);
-  (void) signal(SIGTRAP,(__Sigfunc)signal_handler);
-  (void) signal(SIGIOT, (__Sigfunc)signal_handler);
-  (void) signal(SIGEMT, (__Sigfunc)signal_handler);
-  (void) signal(SIGKILL, (__Sigfunc)signal_handler);
-  (void) signal(SIGBUS, (__Sigfunc)signal_handler);
-  (void) signal(SIGSEGV, (__Sigfunc)signal_handler);
-  (void) signal(SIGSYS, (__Sigfunc)signal_handler);
-  (void) signal(SIGTERM,(__Sigfunc)signal_handler);
-  (void) signal(SIGPIPE, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGINT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGQUIT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGTSTP,(__Sigfunc)SIG_IGN);
+  (void) moria_signal(SIGILL, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGHUP, (__Sigfunc)SIG_IGN);
+  (void) moria_signal(SIGTRAP,(__Sigfunc)signal_handler);
+  (void) moria_signal(SIGIOT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGEMT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGKILL, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGBUS, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGSEGV, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGSYS, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGTERM,(__Sigfunc)signal_handler);
+  (void) moria_signal(SIGPIPE, (__Sigfunc)signal_handler);
 
 #else
   /* Everybody except the atari st.  */
-  (void) signal(SIGINT, signal_handler);
-  (void) signal(SIGFPE, signal_handler);
+  (void) moria_signal(SIGINT, signal_handler);
+  (void) moria_signal(SIGFPE, signal_handler);
 
 #if defined(MSDOS)
   /* many fewer signals under MSDOS */
 #else
 
 #ifdef AMIGA
-/*  (void) signal(SIGINT, signal_handler); */
-  (void) signal(SIGTERM, signal_handler);
-  (void) signal(SIGABRT, signal_handler);
-/*  (void) signal(SIGFPE, signal_handler); */
-  (void) signal(SIGILL, signal_handler);
-  (void) signal(SIGSEGV, signal_handler);
+/*  (void) moria_signal(SIGINT, signal_handler); */
+  (void) moria_signal(SIGTERM, signal_handler);
+  (void) moria_signal(SIGABRT, signal_handler);
+/*  (void) moria_signal(SIGFPE, signal_handler); */
+  (void) moria_signal(SIGILL, signal_handler);
+  (void) moria_signal(SIGSEGV, signal_handler);
 
 #else
 
   /* Everybody except Atari, MSDOS, and Amiga.  */
   /* Ignore HANGUP, and let the EOF code take care of this case. */
-  (void) signal(SIGHUP, SIG_IGN);
-  (void) signal(SIGQUIT, signal_handler);
-  (void) signal(SIGILL, signal_handler);
-  (void) signal(SIGTRAP, signal_handler);
-  (void) signal(SIGIOT, signal_handler);
+  (void) moria_signal(SIGHUP, SIG_IGN);
+  (void) moria_signal(SIGQUIT, signal_handler);
+  (void) moria_signal(SIGILL, signal_handler);
+  (void) moria_signal(SIGTRAP, signal_handler);
+  (void) moria_signal(SIGIOT, signal_handler);
 #ifdef SIGEMT  /* in BSD systems */
-  (void) signal(SIGEMT, signal_handler);
+  (void) moria_signal(SIGEMT, signal_handler);
 #endif
 #ifdef SIGDANGER /* in SYSV systems */
-  (void) signal(SIGDANGER, signal_handler);
+  (void) moria_signal(SIGDANGER, signal_handler);
 #endif
-  (void) signal(SIGKILL, signal_handler);
-  (void) signal(SIGBUS, signal_handler);
-  (void) signal(SIGSEGV, signal_handler);
-  (void) signal(SIGSYS, signal_handler);
-  (void) signal(SIGTERM, signal_handler);
-  (void) signal(SIGPIPE, signal_handler);
+  (void) moria_signal(SIGKILL, signal_handler);
+  (void) moria_signal(SIGBUS, signal_handler);
+  (void) moria_signal(SIGSEGV, signal_handler);
+  (void) moria_signal(SIGSYS, signal_handler);
+  (void) moria_signal(SIGTERM, signal_handler);
+  (void) moria_signal(SIGPIPE, signal_handler);
 #ifdef SIGXCPU	/* BSD */
-  (void) signal(SIGXCPU, signal_handler);
+  (void) moria_signal(SIGXCPU, signal_handler);
 #endif
 #ifdef SIGPWR /* SYSV */
-  (void) signal(SIGPWR, signal_handler);
+  (void) moria_signal(SIGPWR, signal_handler);
 #endif
 #endif
 #endif
@@ -302,9 +309,9 @@ void init_signals()
 void ignore_signals()
 {
 #if !defined(ATARIST_MWC)
-  (void) signal(SIGINT, SIG_IGN);
+  (void) moria_signal(SIGINT, SIG_IGN);
 #ifdef SIGQUIT
-  (void) signal(SIGQUIT, SIG_IGN);
+  (void) moria_signal(SIGQUIT, SIG_IGN);
 #endif
 #endif
 }
@@ -312,9 +319,9 @@ void ignore_signals()
 void default_signals()
 {
 #if !defined(ATARIST_MWC)
-  (void) signal(SIGINT, SIG_DFL);
+  (void) moria_signal(SIGINT, SIG_DFL);
 #ifdef SIGQUIT
-  (void) signal(SIGQUIT, SIG_DFL);
+  (void) moria_signal(SIGQUIT, SIG_DFL);
 #endif
 #endif
 }
@@ -323,15 +330,15 @@ void restore_signals()
 {
 #if !defined(ATARIST_MWC)
 #if defined(atarist) && defined(__GNUC__)
-  (void) signal(SIGINT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGINT, (__Sigfunc)signal_handler);
 #else
-  (void) signal(SIGINT, signal_handler);
+  (void) moria_signal(SIGINT, signal_handler);
 #endif
 #ifdef SIGQUIT
 #if defined(atarist) && defined(__GNUC__)
-  (void) signal(SIGQUIT, (__Sigfunc)signal_handler);
+  (void) moria_signal(SIGQUIT, (__Sigfunc)signal_handler);
 #else
-  (void) signal(SIGQUIT, signal_handler);
+  (void) moria_signal(SIGQUIT, signal_handler);
 #endif
 #endif
 #endif

@@ -68,10 +68,21 @@ typedef struct { int stuff; } fpvmach;
 
 #include <pwd.h>
 #include <sys/errno.h>
+#ifdef MORIA_POSIX
+#include <sys/select.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <stdint.h>
+#endif
+#endif
 
+#ifndef MORIA_POSIX
 #ifdef USG
 struct passwd *getpwuid();
 struct passwd *getpwnam();
+#endif
 #endif
 
 #if defined(SYS_V) && defined(lint)
@@ -115,6 +126,29 @@ static Ioctl(i, l, p) char *p; { return 0; }
 int check_input(microsec)
 int microsec;
 {
+#ifdef MORIA_POSIX
+  struct timeval tbuf;
+  fd_set smask;
+  int ch;
+
+  /* Same contract as the original: consume one ready character, if any,
+     so callers can poll for an interrupt. */
+  tbuf.tv_sec = 0;
+  tbuf.tv_usec = microsec;
+  FD_ZERO(&smask);
+  FD_SET(fileno(stdin), &smask);
+  if (select(fileno(stdin) + 1, &smask, (fd_set *)0, (fd_set *)0, &tbuf) == 1)
+    {
+      ch = getch();
+      if (ch == ERR)
+	{
+	  eof_flag++;
+	  return 0;
+	}
+      return 1;
+    }
+  return 0;
+#else
 #if defined(USG) && !defined(M_XENIX)
   int arg, result;
 #else
@@ -171,6 +205,7 @@ int microsec;
     return 0;
   else
     return 1;
+#endif
 #endif
 }
 
@@ -254,6 +289,7 @@ char *p;
 }
 #endif
 
+#ifndef MORIA_POSIX
 #ifdef USG
 unsigned short getuid();
 #else
@@ -265,27 +301,22 @@ int getuid();
 #endif
 #endif
 #endif
+#endif
 
 /* Find a default user name from the system. */
 void user_name(buf)
 char *buf;
 {
-  extern char *getlogin();
-  char pwline[256];
-  register char *p;
+  char *p;
+  struct passwd *pw;
 
   p = getlogin();
   if (p && p[0])
     (void) strcpy(buf, p);
+  else if ((pw = getpwuid(getuid())) != NULL && pw->pw_name != NULL
+	   && pw->pw_name[0] != '\0')
+    (void) strcpy(buf, pw->pw_name);
   else
-    {
-      (void) getpw((int)getuid(), pwline);
-      p = index(pwline, ':');
-      if (p)
-	*p = 0;
-      (void) strcpy(buf, pwline);
-    }
-  if (!buf[0])
     (void) strcpy(buf, "X");	/* Gotta have some name */
 }
 
@@ -338,7 +369,9 @@ char *file;
 char *mode;
 {
   char buf[1024];
+#ifndef MORIA_POSIX
   extern int errno;
+#endif
 
   if (tilde(file, buf))
     return (fopen(buf, mode));
@@ -353,11 +386,130 @@ char *file;
 int flags, mode;
 {
   char buf[1024];
+#ifndef MORIA_POSIX
   extern int errno;
+#endif
 
   if (tilde(file, buf))
     return (open(buf, flags, mode));
   errno = ENOENT;
   return -1;
 }
+
+#ifdef MORIA_POSIX
+char moria_hou_path[1024];
+char moria_mor_path[1024];
+char moria_top_path[1024];
+char moria_help_path[1024];
+char moria_orig_help_path[1024];
+char moria_wiz_help_path[1024];
+char moria_owiz_help_path[1024];
+char moria_welcome_path[1024];
+char moria_ver_path[1024];
+
+static int moria_dir_has_hours(dir)
+const char *dir;
+{
+  char buf[1200];
+  struct stat st;
+
+  if (dir == 0 || dir[0] == '\0' || strlen(dir) > 1000)
+    return 0;
+  (void) sprintf(buf, "%s/hours", dir);
+  return stat(buf, &st) == 0;
+}
+
+static void moria_join(dst, dstsz, dir, name)
+char *dst;
+int dstsz;
+const char *dir;
+const char *name;
+{
+  (void) snprintf(dst, (size_t)dstsz, "%s/%s", dir, name);
+}
+
+/* Locate help/news/hours, and a writable score file. */
+void moria_init_paths()
+{
+  const char *lib = 0;
+  const char *envlib;
+  const char *home;
+  const char *scores;
+  char exe[1024];
+  char sibling[1024];
+  char dirbuf[1024];
+
+  envlib = getenv("MORIA_LIB");
+  if (moria_dir_has_hours(envlib))
+    lib = envlib;
+#ifdef MORIA_LIB_SOURCE
+  if (lib == 0 && moria_dir_has_hours(MORIA_LIB_SOURCE))
+    lib = MORIA_LIB_SOURCE;
+#endif
+
+  exe[0] = '\0';
+#if defined(__linux__)
+  {
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    if (n > 0)
+      exe[n] = '\0';
+    else
+      exe[0] = '\0';
+  }
+#elif defined(__APPLE__)
+  {
+    uint32_t sz = (uint32_t)sizeof(exe);
+    if (_NSGetExecutablePath(exe, &sz) != 0)
+      exe[0] = '\0';
+  }
+#endif
+  if (exe[0] != '\0')
+    {
+      char *slash = strrchr(exe, '/');
+      if (slash != 0)
+	{
+	  *slash = '\0';
+	  (void) snprintf(sibling, sizeof(sibling), "%s/../share/pmoria", exe);
+	  if (lib == 0 && moria_dir_has_hours(sibling))
+	    lib = sibling;
+	}
+    }
+#ifdef MORIA_LIB_DEFAULT
+  if (lib == 0 && moria_dir_has_hours(MORIA_LIB_DEFAULT))
+    lib = MORIA_LIB_DEFAULT;
+#endif
+  if (lib == 0)
+    lib = "files";
+
+  moria_join(moria_hou_path, (int)sizeof(moria_hou_path), lib, "hours");
+  moria_join(moria_mor_path, (int)sizeof(moria_mor_path), lib, "news");
+  moria_join(moria_help_path, (int)sizeof(moria_help_path), lib, "roglcmds.hlp");
+  moria_join(moria_orig_help_path, (int)sizeof(moria_orig_help_path), lib,
+	     "origcmds.hlp");
+  moria_join(moria_wiz_help_path, (int)sizeof(moria_wiz_help_path), lib,
+	     "rwizcmds.hlp");
+  moria_join(moria_owiz_help_path, (int)sizeof(moria_owiz_help_path), lib,
+	     "owizcmds.hlp");
+  moria_join(moria_welcome_path, (int)sizeof(moria_welcome_path), lib,
+	     "welcome.hlp");
+  moria_join(moria_ver_path, (int)sizeof(moria_ver_path), lib, "version.hlp");
+
+  scores = getenv("MORIA_SCORES");
+  if (scores != 0 && scores[0] != '\0')
+    (void) snprintf(moria_top_path, sizeof(moria_top_path), "%s", scores);
+  else
+    {
+      home = getenv("HOME");
+      if (home != 0 && home[0] != '\0')
+	{
+	  (void) snprintf(dirbuf, sizeof(dirbuf), "%s/.pmoria", home);
+	  (void) mkdir(dirbuf, 0755);
+	  (void) snprintf(moria_top_path, sizeof(moria_top_path),
+			  "%s/scores", dirbuf);
+	}
+      else
+	(void) snprintf(moria_top_path, sizeof(moria_top_path), "scores");
+    }
+}
+#endif
 #endif

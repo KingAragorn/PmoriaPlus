@@ -12,6 +12,41 @@ Constant.h should always be included after config.h, because it uses
 some of the system defines set up here.
 #endif
 
+/* Modern POSIX hosts.  Game data and rules are unchanged.  This selects
+   the System V shaped Unix code (signals, strings) and pulls in ANSI
+   library prototypes so the K&R sources do not rely on implicit
+   declarations.  SYS_V is intentionally not defined: that macro turns
+   index into strchr and would rewrite the treasure field named index. */
+#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) \
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+#define MORIA_POSIX 1
+#endif
+
+#ifdef MORIA_POSIX
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+#ifndef USG
+#define USG
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <time.h>
+#include <sys/stat.h>
+#ifndef STDIO_LOADED
+#define STDIO_LOADED
+#endif
+/* K&R handlers do not match the POSIX signal prototype.  The cast keeps
+   the original functions and satisfies current compilers. */
+#define moria_signal(sig, handler) signal((sig), (void (*)(int))(handler))
+#else
+#define moria_signal(sig, handler) signal((sig), (handler))
+#endif
+
 /* Person to bother if something goes wrong.  */
 /* Recompile files.c and misc2.c if this changes.  */
 #define WIZARD	"David Grabiner"
@@ -191,6 +226,30 @@ some of the system defines set up here.
 #else
 
 /* This must be unix.  */
+#ifdef MORIA_POSIX
+/* Filled in by moria_init_paths() from MORIA_LIB, the install data
+   directory, or the source tree.  Scores go under $HOME/.pmoria. */
+#define MORIA_SAV	"moria.save"
+extern char moria_hou_path[];
+extern char moria_mor_path[];
+extern char moria_top_path[];
+extern char moria_help_path[];
+extern char moria_orig_help_path[];
+extern char moria_wiz_help_path[];
+extern char moria_owiz_help_path[];
+extern char moria_welcome_path[];
+extern char moria_ver_path[];
+#define MORIA_HOU	moria_hou_path
+#define MORIA_MOR	moria_mor_path
+#define MORIA_TOP	moria_top_path
+#define MORIA_HELP	moria_help_path
+#define MORIA_ORIG_HELP	moria_orig_help_path
+#define MORIA_WIZ_HELP	moria_wiz_help_path
+#define MORIA_OWIZ_HELP	moria_owiz_help_path
+#define MORIA_WELCOME	moria_welcome_path
+#define MORIA_VER	moria_ver_path
+void moria_init_paths();
+#else
 #define MORIA_SAV	"moria.save"
 #define MORIA_HOU	"/home/17/petitc/public/Games/Moria/hours"
 #define MORIA_MOR	"/home/17/petitc/public/Games/Moria/news"
@@ -201,6 +260,7 @@ some of the system defines set up here.
 #define MORIA_OWIZ_HELP	"/home/17/petitc/public/Games/Moria/owizcmds.hlp"
 #define MORIA_WELCOME	"/home/17/petitc/public/Games/Moria/welcome.hlp"
 #define MORIA_VER	"/home/17/petitc/public/Games/Moria/version.hlp"
+#endif
 
 #endif
 #endif

@@ -36,8 +36,10 @@ extern char *sprintf();
 #endif
 
 /* to avoid 'psect' problem with VMS declaration of errno */
+#ifndef MORIA_POSIX
 #ifndef VMS
 extern int errno;
+#endif
 #endif
 
 extern char *copyright[5];
@@ -98,7 +100,7 @@ extern int16 panic_save; /* this is true if playing from a panic save */
 
 extern int wait_for_more;
 
-extern char days[7][29];
+extern char days[7][40];
 extern int closing_flag;	/* Used for closing   */
 
 extern int16 cur_height, cur_width;	/* Cur dungeon size    */
@@ -333,6 +335,7 @@ void ident_char(void);
 int suspend(void);
 #endif
 void init_curses(void);
+void moria_force_monochrome(void);
 void moriaterm(void);
 void put_buffer(char *, int, int);
 void put_qio(void);
@@ -846,6 +849,7 @@ void ident_char();
 int suspend();
 #endif
 void init_curses();
+void moria_force_monochrome();
 void moriaterm();
 void put_buffer();
 void put_qio();
@@ -874,6 +878,7 @@ void screen_map();
 
 /* magic.c */
 void cast();
+void speak();
 
 /* main.c */
 int main();
@@ -1032,6 +1037,7 @@ void rest();
 void rest_off();
 int test_hit();
 void take_hit();
+int too_bulky();
 
 /* moria2.c */
 void change_trap();
@@ -1065,6 +1071,7 @@ int twall();
 
 /* moria4.c */
 void tunnel();
+void throw_object();
 void disarm_trap();
 void look();
 void bash();
